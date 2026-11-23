@@ -60,16 +60,22 @@ input[type=range]{accent-color:var(--accent);height:26px}
 .tip b{flex:0 0 auto;color:var(--accent);font-size:11px}
 .tip span{transition:opacity .3s}
 .banner .go{height:36px;padding:0 16px;border-radius:18px;background:var(--accent);color:#fff;font-size:13px;font-weight:700}
-.banner .deco{position:absolute;right:-6px;bottom:-14px;font-size:84px;opacity:.9;transform:rotate(-8deg)}
+.banner .deco{position:absolute;right:-8px;bottom:-10px;width:112px;height:112px;transform:rotate(-6deg)}
+.banner .deco svg{width:100%;height:100%}
 .tools{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:18px 14px 6px}
 .tool{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:13px;font-weight:700}
-.tool .ic{width:58px;height:58px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:var(--shadow)}
+.tool .ic{width:58px;height:58px;border-radius:20px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 12px rgba(255,90,135,.18)}
+.tool .ic svg{width:28px;height:28px}
 .tool small{font-size:11px;color:var(--sub);font-weight:500;margin-top:-4px}
-.ic.c1{background:linear-gradient(135deg,#ff7aa2,#ff5a87)} .ic.c2{background:linear-gradient(135deg,#b39dff,#8a6bff)} .ic.c3{background:linear-gradient(135deg,#6fd6c6,#3fb0e8)}
+.ic.c1{background:linear-gradient(135deg,#ff8fb1,#ff5a87)} .ic.c2{background:linear-gradient(135deg,#ffb38a,#ff7d6b)} .ic.c3{background:linear-gradient(135deg,#c9a7ff,#9b7bff)}
 .secTitle{font-size:14px;font-weight:800;padding:16px 16px 6px}
 .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 14px}
 .quick button{background:var(--panel);border-radius:14px;padding:10px 0 9px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600;box-shadow:var(--shadow)}
-.quick button span{font-size:20px}
+.quick button span{width:38px;height:38px;border-radius:50%;background:var(--accentBg);color:var(--accent);display:flex;align-items:center;justify-content:center}
+.quick button span svg{width:20px;height:20px}
+.hic svg{width:21px;height:21px;color:var(--text)}
+.tip b{display:flex;align-items:center;gap:2px}
+.tip b svg{width:14px;height:14px}
 /* ---------- 촬영(비교) ---------- */
 #stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;margin:6px 12px;min-height:0}
 #compose{position:relative;display:flex;background:#fff;border-radius:8px;overflow:hidden;box-shadow:var(--shadow),0 0 0 1px var(--line)}
@@ -183,26 +189,32 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
   <header>
     <h1><span class="brand">BEAUTY BY BIN</span><br>비포<b>&amp;</b>애프터</h1>
     <button class="icon-btn accent hidden" id="installBtn">설치</button>
-    <button class="icon-btn" id="helpBtn" aria-label="사용법">❔</button>
-    <button class="icon-btn" id="setBtn" aria-label="설정">⚙️</button>
+    <button class="icon-btn hic" id="helpBtn" aria-label="사용법"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg></button>
+    <button class="icon-btn hic" id="setBtn" aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </header>
   <div class="banner">
     <h2>시술 전후,<br><b>같은 구도</b>로 정확하게</h2>
     <p>비포 사진을 겹쳐 보며 애프터를 찍어요</p>
-    <button class="tip" id="tip"><b>💡 TIP</b><span id="tipText"></span></button>
-    <div class="deco">📸</div>
+    <button class="tip" id="tip"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>TIP</b><span id="tipText"></span></button>
+    <div class="deco"><svg viewBox="0 0 120 120"><defs><clipPath id="dl"><rect x="0" y="0" width="60" height="120"/></clipPath></defs>
+      <circle cx="60" cy="60" r="44" fill="#fff" opacity=".75"/><circle cx="60" cy="60" r="44" fill="#ffc2d3" clip-path="url(#dl)" opacity=".9"/>
+      <path d="M38 52c6-7 14-8 18-6M64 46c4-2 12-1 18 6" stroke="#2b2623" stroke-width="4" stroke-linecap="round" fill="none" opacity=".85"/>
+      <path d="M40 66c4 3 9 3 13 0M67 66c4 3 9 3 13 0" stroke="#2b2623" stroke-width="2.6" stroke-linecap="round" fill="none" opacity=".7"/>
+      <line x1="60" y1="10" x2="60" y2="110" stroke="#ff5a87" stroke-width="2.4" stroke-dasharray="5 4"/>
+      <text x="36" y="96" font-size="9" font-weight="800" fill="#ff5a87" text-anchor="middle" font-family="Pretendard,sans-serif">BEFORE</text>
+      <text x="84" y="96" font-size="9" font-weight="800" fill="#ff5a87" text-anchor="middle" font-family="Pretendard,sans-serif">AFTER</text></svg></div>
   </div>
   <div class="tools">
-    <button class="tool" id="goShoot"><div class="ic c1">📷</div>촬영<small>비포·애프터</small></button>
-    <button class="tool" id="goCollage"><div class="ic c2">🧩</div>콜라주<small>여러 장 한 장으로</small></button>
-    <button class="tool" id="goEdit"><div class="ic c3">🎨</div>편집<small>보정·자르기</small></button>
+    <button class="tool" id="goShoot"><div class="ic c1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.6"/><path d="M12 8.9v7.2" stroke-dasharray="1.6 1.4"/></svg></div>촬영<small>비포·애프터</small></button>
+    <button class="tool" id="goCollage"><div class="ic c2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7.5" height="10" rx="1.6"/><rect x="13" y="3.5" width="7.5" height="5.5" rx="1.6"/><rect x="13" y="11" width="7.5" height="9.5" rx="1.6"/><rect x="3.5" y="15.5" width="7.5" height="5" rx="1.6"/></svg></div>콜라주<small>여러 장 한 장으로</small></button>
+    <button class="tool" id="goEdit"><div class="ic c3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 15.5 8.5"/><path d="m14 7 3 3"/><path d="M18.5 3.5v3M17 5h3"/><path d="M8 4v2M7 5h2"/><path d="M19.5 13v2M18.5 14h2"/></svg></div>편집<small>보정·자르기</small></button>
   </div>
   <div class="secTitle">바로가기</div>
   <div class="quick">
-    <button data-q="part"><span>✨</span>부위 보정</button>
-    <button data-q="crop"><span>✂️</span>자르기</button>
-    <button data-q="bg"><span>🪄</span>배경 지우기</button>
-    <button data-q="mosaic"><span>▦</span>모자이크</button>
+    <button data-q="part"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c.6 3.6 1.9 4.9 5.5 5.5-3.6.6-4.9 1.9-5.5 5.5-.6-3.6-1.9-4.9-5.5-5.5 3.6-.6 4.9-1.9 5.5-5.5z"/><path d="M18 14.5c.3 1.6.9 2.2 2.5 2.5-1.6.3-2.2.9-2.5 2.5-.3-1.6-.9-2.2-2.5-2.5 1.6-.3 2.2-.9 2.5-2.5z"/><path d="M6 15.5c.2 1.1.6 1.5 1.7 1.7-1.1.2-1.5.6-1.7 1.7-.2-1.1-.6-1.5-1.7-1.7 1.1-.2 1.5-.6 1.7-1.7z"/></svg></span>부위 보정</button>
+    <button data-q="crop"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2.5v13.5a1.5 1.5 0 0 0 1.5 1.5h13.5"/><path d="M2.5 6.5h13.5a1.5 1.5 0 0 1 1.5 1.5v13.5"/></svg></span>자르기</button>
+    <button data-q="bg"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" stroke-dasharray="2.4 2.2"/><circle cx="12" cy="9.5" r="2.8"/><path d="M6.8 18.5c.8-2.9 2.8-4.3 5.2-4.3s4.4 1.4 5.2 4.3"/></svg></span>배경 지우기</button>
+    <button data-q="mosaic"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/><rect x="9.2" y="3.5" width="5.6" height="5.7" fill="currentColor" stroke="none"/><rect x="3.5" y="9.2" width="5.7" height="5.6" fill="currentColor" stroke="none"/><rect x="14.8" y="9.2" width="5.7" height="5.6" fill="currentColor" stroke="none"/><rect x="9.2" y="14.8" width="5.6" height="5.7" fill="currentColor" stroke="none"/></svg></span>모자이크</button>
   </div>
   <div style="flex:1;min-height:16px"></div>
   <footer>제작자 인스타 <a href="https://www.instagram.com/beautyby_bin/" target="_blank" rel="noopener">@beautyby_bin</a></footer>
