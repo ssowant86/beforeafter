@@ -42,6 +42,9 @@ header h1 b{color:var(--accent)}
 .chip.on{background:var(--accentBg);color:var(--accent);box-shadow:0 0 0 1.5px var(--accent) inset}
 .big{height:46px;border-radius:14px;background:var(--panel);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:5px;box-shadow:0 0 0 1px var(--line) inset;color:var(--text)}
 .big.primary{background:var(--accent);color:#fff;box-shadow:none}
+.optRow{display:flex;align-items:center;gap:6px;padding:6px 12px}
+.optRow .lbl{font-size:12px;font-weight:700;color:var(--sub);flex:0 0 auto}
+.optRow .seg button{height:30px;font-size:12px}
 .hintline{font-size:11px;color:var(--sub);text-align:center;padding:2px 10px}
 footer{text-align:center;font-size:12px;color:var(--sub);padding:6px 0 8px}
 footer a{color:var(--accent);text-decoration:none;font-weight:700}
@@ -104,7 +107,7 @@ input[type=range]{accent-color:var(--accent);height:26px}
 .ovRow .peek{border:1px solid var(--accent2);background:transparent;color:var(--accent2);user-select:none;-webkit-user-select:none;touch-action:none}
 .shutterRow{display:flex;align-items:center;justify-content:space-around;padding:6px 10px 2px}
 #shutter{width:64px;height:64px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px #000,0 0 0 7px var(--accent)}
-.side{width:52px;height:46px;border-radius:14px;background:rgba(255,255,255,.12);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#fff}
+.side{width:62px;height:46px;border-radius:14px;background:rgba(255,255,255,.12);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#fff}
 .side span{font-size:17px}
 .side.on{background:var(--accent)}
 /* ---------- 편집 ---------- */
@@ -140,8 +143,9 @@ input[type=range]{accent-color:var(--accent);height:26px}
 .lchip svg{width:34px;height:34px}
 .lrow{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .lrow::-webkit-scrollbar{display:none}
-.fontGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;max-height:26vh;overflow-y:auto;padding:2px}
+.fontGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;max-height:34vh;overflow-y:auto;padding:2px}
 .fontGrid button{height:48px;border-radius:10px;background:var(--panel2);font-size:16px;line-height:1.1;padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.fontGrid .fg{grid-column:1/-1;font-size:11px;font-weight:800;color:var(--accent);padding:6px 2px 0}
 .fontGrid button small{display:block;font:500 9px var(--font);color:var(--sub)}
 .fontGrid button.on{background:var(--accentBg);color:var(--accent);box-shadow:0 0 0 1.5px var(--accent) inset}
 .colorRow{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
@@ -224,7 +228,7 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
     </div>
   </div>
   <div class="hintline">두 손가락 = 확대/축소 · 한 손가락 끌기 = 위치 이동 · 두 번 탭 = 원래대로</div>
-  <div class="chips" id="guideChipsMain"></div>
+  <div class="optRow" id="guideChipsMain"></div>
   <div class="row"><button class="big primary" id="alignBtn" style="flex:1">🎯 비포에 맞춰 애프터 찍기</button></div>
   <div class="actions" style="padding-top:6px">
     <button class="big" id="toEdit">🎨 보정하기</button>
@@ -335,7 +339,7 @@ saveS();
 const PROCS = [['brow','눈썹'],['lash','속눈썹'],['body','바디']];
 const procName = p => (PROCS.find(x=>x[0]===p)||PROCS[0])[1];
 const RATIOS = [['free','자유'],['1:1','1:1'],['4:5','4:5'],['3:4','3:4'],['9:16','9:16'],['16:9','16:9']];
-const CAM_RATIOS = ['3:4','9:16','4:5','1:1'];
+const CAM_RATIOS = ['3:4','4:5','1:1','9:16'];
 const COLORS = [['#ffffff','흰색'],['#000000','검정'],['#ff5a87','분홍']];
 
 const $ = s => document.querySelector(s);
@@ -631,8 +635,10 @@ function renderProcSeg(){
 }
 function renderGuideChips(){
   const box=$('#guideChipsMain');
-  box.innerHTML=`<button class="chip ${S.guideOn?'on':''}" data-v="on">📐 구도선 · ${procName(S.proc)}</button><button class="chip ${!S.guideOn?'on':''}" data-v="off">없음</button>`;
-  box.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{ S.guideOn=b.dataset.v==='on'; saveS(); renderGuideChips(); drawAll(); });
+  box.innerHTML=`<span class="lbl">비율</span><div class="seg" style="flex:1.7">${CAM_RATIOS.map(r=>`<button data-r="${r}" class="${S.ratio===r?'on':''}">${r}</button>`).join('')}</div>
+    <span class="lbl" style="margin-left:4px">구도선</span><div class="seg"><button data-g="on" class="${S.guideOn?'on':''}">있음</button><button data-g="off" class="${!S.guideOn?'on':''}">없음</button></div>`;
+  box.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ S.guideOn=b.dataset.g==='on'; saveS(); renderGuideChips(); drawAll(); });
+  box.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ S.ratio=b.dataset.r; saveS(); renderGuideChips(); layout(); });
   $('#camGuide').classList.toggle('on', S.guideOn);
   $('#camGuide').innerHTML=`<span>📐</span>${S.guideOn?'구도선':'없음'}`;
 }
@@ -773,7 +779,7 @@ function capturePhoto(){
 }
 $('#camClose').onclick=exitCamera;
 $('#camFlip').onclick=()=>{ facing=facing==='environment'?'user':'environment'; startStream(); };
-$('#camRatio').onclick=()=>{ const i=CAM_RATIOS.indexOf(S.ratio); S.ratio=CAM_RATIOS[(i+1)%CAM_RATIOS.length]; saveS(); $('#camRatio').textContent=S.ratio; layoutCam(); toast(`비율 ${S.ratio}`); };
+$('#camRatio').onclick=()=>{ const i=CAM_RATIOS.indexOf(S.ratio); S.ratio=CAM_RATIOS[(i+1)%CAM_RATIOS.length]; saveS(); $('#camRatio').textContent=S.ratio; renderGuideChips(); layoutCam(); toast(`비율 ${S.ratio}`); };
 $('#camGuide').onclick=()=>{ S.guideOn=!S.guideOn; saveS(); renderGuideChips(); drawCamGuides(); drawAll(); };
 $('#shutter').onclick=()=>{ if(!stream){ $('#fileCapture').click(); return; } capturePhoto(); };
 function setOverlay(v){
@@ -1366,7 +1372,8 @@ const FONTS=[
   ['Gasoek One','가석',''],['Bagel Fat One','베이글',''],['Moirai One','모이라이',''],['Grandiflora One','그랜디플로라',''],
   ['Dancing Script','Dancing',''],['Great Vibes','Great Vibes',''],['Pacifico','Pacifico',''],['Playfair Display','Playfair','wght@400;700'],
   ['Montserrat','Montserrat','wght@400;700'],['Lobster','Lobster',''],['Bebas Neue','Bebas',''],['Caveat','Caveat',''],['Cormorant Garamond','Cormorant',''],
-  ['Abril Fatface','Abril',''],['Satisfy','Satisfy',''],['Sacramento','Sacramento',''],['Allura','Allura',''],['Cinzel','Cinzel',''],['Josefin Sans','Josefin','']
+  ['Abril Fatface','Abril',''],['Satisfy','Satisfy',''],['Sacramento','Sacramento',''],['Allura','Allura',''],['Cinzel','Cinzel',''],['Josefin Sans','Josefin',''],
+  ['Parisienne','Parisienne',''],['Alex Brush','Alex Brush',''],['Pinyon Script','Pinyon',''],['Tangerine','Tangerine','wght@400;700'],['Italianno','Italianno',''],['Rouge Script','Rouge',''],['Petit Formal Script','Petit Formal',''],['Mrs Saint Delafield','Delafield',''],['Herr Von Muellerhoff','Muellerhoff',''],['Kaushan Script','Kaushan',''],['Yellowtail','Yellowtail',''],['Cookie','Cookie',''],['Marck Script','Marck',''],['Homemade Apple','Homemade',''],['Shadows Into Light','Shadows',''],['Indie Flower','Indie Flower',''],['Kalam','Kalam',''],['Amatic SC','Amatic','wght@400;700']
 ];
 let fontsLinked=false;
 function loadFonts(){
@@ -1374,6 +1381,12 @@ function loadFonts(){
   FONTS.forEach(([f,,w])=>{ if(f==='system') return; const l=document.createElement('link'); l.rel='stylesheet';
     l.href='https://fonts.googleapis.com/css2?family='+encodeURIComponent(f).replace(/%20/g,'+')+(w?':'+w:'')+'&display=swap'; document.head.appendChild(l); });
 }
+const FONT_GROUPS=[
+  ['한글 손글씨',['Nanum Pen Script','Nanum Brush Script','Gaegu','Gamja Flower','Hi Melody','Poor Story','Single Day','Yeon Sung','Cute Font','Dokdo','East Sea Dokdo','Kirang Haerang','Dongle']],
+  ['영문 필기체',['Dancing Script','Great Vibes','Pacifico','Satisfy','Sacramento','Allura','Parisienne','Alex Brush','Pinyon Script','Tangerine','Italianno','Rouge Script','Petit Formal Script','Mrs Saint Delafield','Herr Von Muellerhoff','Kaushan Script','Yellowtail','Cookie','Marck Script','Homemade Apple','Shadows Into Light','Indie Flower','Kalam','Amatic SC','Caveat','Lobster']],
+];
+function fontGroups(){ const used=new Set(FONT_GROUPS.flatMap(g=>g[1])); return [['기본 · 한글',FONTS.filter(f=>!used.has(f[0])).map(f=>f[0]).filter(f=>!/^[A-Z]/.test(f)||/KR|Nanum|Gothic A1|Gowun|Hahmlet|Orbit|Black|Do Hyeon|Jua|Sunflower|Stylish|Gugi|Song Myung|Diphylleia|Gasoek|Bagel|Moirai|Grandiflora/.test(f)||f==='system')],
+  ...FONT_GROUPS, ['영문',FONTS.map(f=>f[0]).filter(f=>!used.has(f)&&/^(Playfair Display|Montserrat|Bebas Neue|Cormorant Garamond|Abril Fatface|Cinzel|Josefin Sans)$/.test(f))]]; }
 const fontCss = f => f==='system' ? 'var(--font)' : `'${f}'`;
 const fontCanvas = f => f==='system' ? bodyFont() : `"${f}"`;
 
@@ -1594,7 +1607,7 @@ function textSheet(i){
   const sw=(list,cur,attr)=>list.map(c=>`<button class="sw ${cur===c?'on':''}" style="background:${c}" ${attr}="${c}"></button>`).join('');
   openSheet(`<h2>글자 <button data-close>✓</button></h2>
     <textarea id="tIn" placeholder="글자를 입력하세요">${esc(t.text)}</textarea>
-    <h3>글씨체</h3><div class="fontGrid">${FONTS.map(([f,l])=>`<button data-f="${esc(f)}" class="${t.font===f?'on':''}" style="font-family:${fontCss(f)}">가나다 Ab<small>${l}</small></button>`).join('')}</div>
+    <h3>글씨체</h3><div class="fontGrid">${fontGroups().map(([g,list])=>`<div class="fg">${g}</div>`+list.map(f=>{ const l=(FONTS.find(x=>x[0]===f)||[f,f])[1]; const en=g.startsWith('영문'); return `<button data-f="${esc(f)}" class="${t.font===f?'on':''}" style="font-family:${fontCss(f)}">${en?'Beauty':'가나다 Ab'}<small>${l}</small></button>`; }).join('')).join('')}</div>
     <div class="field" style="margin-top:8px"><label>크기</label><input type="range" min="2" max="30" step="0.5" id="tSize" value="${t.size}"><span class="val">${t.size}</span></div>
     <div class="field"><label>투명도</label><input type="range" min="5" max="100" id="tAlpha" value="${t.alpha}"><span class="val">${t.alpha}</span></div>
     <h3>글자 색</h3><div class="colorRow">${sw(TXT_COLORS,t.color,'data-c')}<input type="color" id="tColor" value="${t.color}"></div>
@@ -1624,7 +1637,7 @@ function textSheet(i){
 }
 
 /* 콜라주 아래 메뉴 */
-const COL_TABS=[['layout','▦','레이아웃'],['free','🃏','프리'],['border','⬚','테두리'],['ratio','⛶','비율'],['bg','🎨','배경'],['text','T','글자']];
+const COL_TABS=[['layout','▦','레이아웃'],['border','⬚','테두리'],['ratio','⛶','비율'],['text','T','글자'],['free','🃏','프리'],['bg','🎨','배경']];
 function layoutIcon(k,polys){ const on=CL.mode==='grid'&&CL.layout===k; return `<button class="lchip ${on?'on':''}" data-l="${k}"><svg viewBox="0 0 40 40">${polys.map(p=>`<polygon points="${p.map(([x,y])=>`${(x*36+2).toFixed(1)},${(y*36+2).toFixed(1)}`).join(' ')}" fill="${on?'#ff5a87':'#cfc6ba'}" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>`).join('')}</svg></button>`; }
 function rngC(key,label,min,max){ return `<div class="field"><label style="width:96px">${label}</label><input type="range" min="${min}" max="${max}" data-c="${key}" value="${CL[key]}"><span class="val">${CL[key]}</span></div>`; }
 function colTabRender(){
