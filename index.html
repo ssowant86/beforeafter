@@ -1397,7 +1397,7 @@ const COL_LAYOUTS={
 };
 const COL_RATIOS=[['1:1','1:1'],['4:5','4:5'],['3:4','3:4'],['9:16','9:16'],['16:9','16:9']];
 const COL_BG=['#ffffff','#faf6ef','#ffe3ec','#f2e8ff','#e6f4f1','#2b2623','#000000','#ff5a87'];
-const CL={mode:'grid',layout:'2h',ratio:'4:5',gap:10,frame:4,bg:'#ffffff',cells:[],items:[],texts:[],sel:-1,selItem:-1,tab:'layout'};
+const CL={mode:'grid',layout:'2h',ratio:'4:5',seam:0,gap:10,frame:4,bg:'#ffffff',cells:[],items:[],texts:[],sel:-1,selItem:-1,tab:'layout'};
 const colCv=$('#colCanvas'); let colW=100,colH=100;
 function colRatio(){ const [a,b]=CL.ratio.split(':').map(Number); return a/b; }
 function colEnsureCells(){ const n=COL_LAYOUTS[CL.layout].length; while(CL.cells.length<n) CL.cells.push({img:null,z:1,cx:0,cy:0}); }
@@ -1441,7 +1441,8 @@ function colRender(x,W,H,forExport){
       }
       x.restore();
     });
-    const g=CL.gap/1000*Math.min(W,H)*2.2;
+    if(CL.seam>0) drawSeamless(x,W,H,polys);
+    const g=CL.seam>0 ? 0 : CL.gap/1000*Math.min(W,H)*2.2;
     if(g>0){ x.save(); x.strokeStyle=CL.bg; x.lineJoin='miter'; x.lineWidth=g; polys.forEach(poly=>{ polyPath(x,poly,W,H); x.stroke(); }); x.lineWidth=g*2; x.strokeRect(0,0,W,H); x.restore(); }
   } else {
     CL.items.forEach((it,i)=>{
@@ -1467,6 +1468,25 @@ function colRender(x,W,H,forExport){
     if(!forExport && i===CL.sel){ x.save(); x.setLineDash([6,5]); x.strokeStyle='#ff5a87'; x.lineWidth=Math.max(1.5,W/300); x.strokeRect(cx-b.w/2-8,top-6,b.w+16,b.h+12); x.restore(); }
   });
   x.restore();
+}
+// 심리스: 각 사진 가장자리를 부드럽게 흐려서 옆 사진과 자연스럽게 섞기
+function drawSeamless(x,W,H,polys){
+  const f=CL.seam/100*Math.min(W,H)*0.2; if(f<1) return;
+  polys.forEach((poly,i)=>{
+    const c=CL.cells[i]; if(!c||!c.img) return;
+    const b=polyBox(poly,W,H); const cr=cropFor(c.img.width,c.img.height,c.z,c.cx,c.cy,b.w/b.h); const s=b.w/cr.w;
+    const ow=Math.ceil(b.w+2*f), oh=Math.ceil(b.h+2*f);
+    const o=newMask(ow,oh), ox=o.getContext('2d'); ox.imageSmoothingQuality='high';
+    ox.drawImage(c.img, f-cr.x*s, f-cr.y*s, c.img.width*s, c.img.height*s);
+    const k=Math.min(1,220/Math.max(ow,oh)), mw=Math.max(2,Math.round(ow*k)), mh=Math.max(2,Math.round(oh*k));
+    const m=newMask(mw,mh), mx=m.getContext('2d'); mx.fillStyle='#fff'; mx.beginPath();
+    poly.forEach(([px,py],j)=>{ const X=(px*W-b.x+f)*k, Y=(py*H-b.y+f)*k; j?mx.lineTo(X,Y):mx.moveTo(X,Y); }); mx.closePath(); mx.fill();
+    const id=mx.getImageData(0,0,mw,mh); const a=new Float32Array(mw*mh); for(let j=0;j<a.length;j++) a[j]=id.data[j*4+3];
+    const bl=blur1(a,mw,mh,Math.max(1,f*k*0.55),3); for(let j=0;j<a.length;j++) id.data[j*4+3]=bl[j];
+    mx.putImageData(id,0,0);
+    ox.globalCompositeOperation='destination-in'; ox.imageSmoothingQuality='high'; ox.drawImage(m,0,0,ow,oh);
+    x.drawImage(o,b.x-f,b.y-f);
+  });
 }
 function colDraw(){ colRender(colCv.getContext('2d'),colCv.width,colCv.height,false); }
 async function colEnsureFont(t){ if(t.font==='system' || !document.fonts) return; try{ await document.fonts.load(`${t.bold?'700':'400'} 40px "${t.font}"`, t.text||'가A'); }catch(e){} }
@@ -1620,8 +1640,11 @@ function colTabRender(){
        <div class="miniBtns"><button id="frAdd" class="primary">🖼 사진 추가</button><button id="frShuffle">🔀 흩뿌리기</button><button id="frStraight">↺ 바로 세우기</button></div>
        ${rngC('frame','사진 흰 테두리',0,30)}`;
   } else if(t==='border'){
-    h=`${CL.mode==='grid'?rngC('gap','사진 사이 여백',0,40):rngC('frame','사진 흰 테두리',0,30)}
-       <div class="miniBtns"><button id="noGap" class="${(CL.mode==='grid'?CL.gap:CL.frame)===0?'on':''}">여백 없애기</button><button id="midGap">기본 여백</button></div>`;
+    h = CL.mode==='grid'
+      ? `${rngC('gap','사진 사이 여백',0,40)}${rngC('seam','심리스',0,100)}
+         <div class="desc">심리스를 올리면 사진 사이 경계가 뿌옇게 섞여 한 장처럼 이어져요. (여백은 자동으로 없어져요)</div>
+         <div class="miniBtns"><button id="noGap" class="${CL.gap===0&&!CL.seam?'on':''}">여백 없애기</button><button id="seamOn" class="${CL.seam>0?'on':''}">심리스</button><button id="midGap" class="${CL.gap===10&&!CL.seam?'on':''}">기본 여백</button></div>`
+      : `${rngC('frame','사진 흰 테두리',0,30)}<div class="miniBtns"><button id="noGap" class="${CL.frame===0?'on':''}">테두리 없애기</button><button id="midGap">기본 테두리</button></div>`;
   } else if(t==='ratio'){
     h=`<div class="opts">${COL_RATIOS.map(([v,l])=>`<button class="chip ${CL.ratio===v?'on':''}" data-r="${v}">${l}</button>`).join('')}</div>`;
   } else if(t==='bg'){
@@ -1632,21 +1655,22 @@ function colTabRender(){
   }
   box.innerHTML=h;
   box.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{ CL.layout=b.dataset.l; setColMode('grid'); colTabRender(); });
-  box.querySelectorAll('input[data-c]').forEach(r=>r.oninput=()=>{ CL[r.dataset.c]=+r.value; r.nextElementSibling.textContent=r.value; colDraw(); });
+  box.querySelectorAll('input[data-c]').forEach(r=>{ r.oninput=()=>{ CL[r.dataset.c]=+r.value; r.nextElementSibling.textContent=r.value; colDraw(); }; r.onchange=()=>{ if(CL.tab==='border') colTabRender(); }; });
   box.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ CL.ratio=b.dataset.r; colTabRender(); colLayout(); });
   box.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{ CL.bg=b.dataset.b; colTabRender(); colDraw(); });
   box.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{ CL.sel=+b.dataset.tx; colDraw(); textSheet(+b.dataset.tx); });
   const q=s=>box.querySelector(s);
   if(q('#cBg')) q('#cBg').oninput=e=>{ CL.bg=e.target.value; colDraw(); };
-  if(q('#noGap')) q('#noGap').onclick=()=>{ if(CL.mode==='grid') CL.gap=0; else CL.frame=0; colTabRender(); colDraw(); };
-  if(q('#midGap')) q('#midGap').onclick=()=>{ if(CL.mode==='grid') CL.gap=10; else CL.frame=4; colTabRender(); colDraw(); };
+  if(q('#noGap')) q('#noGap').onclick=()=>{ if(CL.mode==='grid'){ CL.gap=0; CL.seam=0; } else CL.frame=0; colTabRender(); colDraw(); };
+  if(q('#midGap')) q('#midGap').onclick=()=>{ if(CL.mode==='grid'){ CL.gap=10; CL.seam=0; } else CL.frame=4; colTabRender(); colDraw(); };
+  if(q('#seamOn')) q('#seamOn').onclick=()=>{ CL.seam=CL.seam||50; colTabRender(); colDraw(); };
   if(q('#frAdd')) q('#frAdd').onclick=()=>colPick(-1);
   if(q('#frShuffle')) q('#frShuffle').onclick=()=>{ CL.items.forEach(it=>{ it.x=0.22+Math.random()*0.56; it.y=0.22+Math.random()*0.56; it.rot=(Math.random()-0.5)*0.4; }); colDraw(); };
   if(q('#frStraight')) q('#frStraight').onclick=()=>{ CL.items.forEach(it=>it.rot=0); colDraw(); };
   if(q('#txAdd')) q('#txAdd').onclick=addText;
 }
 function resetCollage(){
-  Object.assign(CL,{mode:'grid',layout:'2h',ratio:'4:5',gap:10,frame:4,bg:'#ffffff',cells:[],items:[],texts:[],sel:-1,selItem:-1,tab:'layout'});
+  Object.assign(CL,{mode:'grid',layout:'2h',ratio:'4:5',seam:0,gap:10,frame:4,bg:'#ffffff',cells:[],items:[],texts:[],sel:-1,selItem:-1,tab:'layout'});
   colEnsureCells(); colTabRender(); colLayout();
 }
 function setColMode(m){
