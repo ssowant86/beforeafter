@@ -1,6 +1,6 @@
 // 오프라인에서도 앱이 열리도록 파일을 휴대폰에 보관하는 스크립트
 // 앱을 고친 뒤에는 아래 버전 숫자(v1)를 v2, v3…로 올려 주세요.
-const CACHE = 'bacam-v6';
+const CACHE = 'bacam-v7';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
