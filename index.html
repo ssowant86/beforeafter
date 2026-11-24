@@ -101,6 +101,13 @@ input[type=range]{accent-color:var(--accent);height:26px}
 #hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);max-width:92%;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:16px;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #match{position:absolute;right:8px;top:60px;background:rgba(0,0,0,.6);padding:4px 9px;border-radius:12px;font-weight:800;font-size:17px;text-align:center;line-height:1.05}
 #match small{display:block;font-size:10px;font-weight:600;color:#bbb}
+/* 폰을 옆으로 눕혔을 때 안내 글자도 같이 회전 */
+#camFrame.r90 #hint{left:24px;top:50%;bottom:auto;max-width:none;transform:translate(-50%,-50%) rotate(90deg)}
+#camFrame.rm90 #hint{left:calc(100% - 24px);top:50%;bottom:auto;max-width:none;transform:translate(-50%,-50%) rotate(-90deg)}
+#camFrame.r180 #hint{top:10px;bottom:auto;transform:translateX(-50%) rotate(180deg)}
+#camFrame.r90 #match{transform:rotate(90deg)}
+#camFrame.rm90 #match{transform:rotate(-90deg)}
+#camFrame.r180 #match{transform:rotate(180deg)}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 #camFallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center;background:rgba(0,0,0,.88);z-index:3}
 #camFallback p{margin:0;font-size:14px;line-height:1.5;color:#ddd}
@@ -666,6 +673,7 @@ const small=document.createElement('canvas'); const smallCtx=small.getContext('2
 function camAspect(){ return ratioNum() || 3/4; }
 function openCamera(target, align){
   if(target===undefined || target<0){ target=firstEmpty(); if(target<0) target=1; }
+  startMotion();
   camTarget=target; camOn=true; alignMode=!!align && target===1 && !!slots[0].proc;
   $('#main').classList.add('hidden'); $('#cam').classList.remove('hidden');
   $('#camTitle').textContent = (alignMode ? '비포에 맞춰 찍기' : (target===0?'BEFORE':'AFTER')+' 촬영') + ' · ' + procName(S.proc);
@@ -703,7 +711,45 @@ function layoutCam(){
   }
   drawCamGuides();
 }
-function drawCamGuides(){ const g=$('#camGuides'); const k=dpr(); g.width=Math.round(frameW*k); g.height=Math.round(frameH*k); const x=g.getContext('2d'); x.clearRect(0,0,g.width,g.height); drawGuides(x,g.width,g.height,k); }
+function drawCamGuides(){ const g=$('#camGuides'); const k=dpr(); g.width=Math.round(frameW*k); g.height=Math.round(frameH*k); const x=g.getContext('2d'); x.clearRect(0,0,g.width,g.height);
+  const W=g.width, H=g.height;
+  if(!camRot){ drawGuides(x,W,H,k); return; }
+  x.save(); x.translate(W/2,H/2); x.rotate(camRot*Math.PI/180);
+  if(camRot===180){ x.translate(-W/2,-H/2); drawGuides(x,W,H,k); }
+  else { x.translate(-H/2,-W/2); drawGuides(x,H,W,k); }
+  x.restore();
+}
+/* ===== 폰 방향 감지: 옆으로 눕히면 구도선이 따라 돌아감 ===== */
+let camRot=0, motionOn=false;
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+function setCamRot(r){
+  if(r===camRot) return; camRot=r;
+  const fr=$('#camFrame'); fr.classList.toggle('r90',r===90); fr.classList.toggle('rm90',r===-90); fr.classList.toggle('r180',r===180);
+  if(camOn) drawCamGuides();
+}
+function onMotion(e){
+  const g=e.accelerationIncludingGravity; if(!g || g.x==null || g.y==null) return;
+  let gx=g.x, gy=g.y; if(IS_IOS){ gx=-gx; gy=-gy; }
+  const ax=Math.abs(gx), ay=Math.abs(gy);
+  if(ax<3 && ay<3) return; // 폰을 바닥에 눕혀 둔 상태면 그대로 유지
+  if(ax>ay*1.4) setCamRot(gx>0?90:-90);
+  else if(ay>ax*1.4) setCamRot(gy>0?0:180);
+}
+function startMotion(){
+  if(motionOn) return;
+  const go=()=>{ window.addEventListener('devicemotion',onMotion); motionOn=true; };
+  if(!window.DeviceMotionEvent) return;
+  go(); // 대부분의 안드로이드는 바로 동작
+  if(typeof DeviceMotionEvent.requestPermission==='function'){ // 아이폰: 처음 한 번 '동작 및 방향' 허용 필요
+    try{ DeviceMotionEvent.requestPermission().catch(()=>{}); }catch(e){}
+  }
+}
+function userDir(d){ // 화면 기준 방향 → 폰을 든 사람 기준 방향
+  if(camRot===90) return {r:'u',l:'d',u:'l',d:'r'}[d];
+  if(camRot===-90) return {r:'d',l:'u',u:'r',d:'l'}[d];
+  if(camRot===180) return {r:'l',l:'r',u:'d',d:'u'}[d];
+  return d;
+}
 function stopStream(){ cancelAnimationFrame(rafId); clearInterval(analyzeTimer); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } video.srcObject=null; }
 async function startStream(){
   stopStream(); $('#camFallback').classList.add('hidden'); $('#hint').classList.add('hidden');
@@ -751,7 +797,7 @@ function analyzeLive(){
   smallCtx.drawImage(video,c.x,c.y,c.w,c.h,0,0,sw,sh); smallCtx.restore();
   const L=analyze(smallCtx.getImageData(0,0,sw,sh));
   const hint=$('#hint'); let msg='', front=facing==='user';
-  const mv = (dir)=> front ? ({r:'➡️ 얼굴을 화면 오른쪽으로',l:'⬅️ 얼굴을 화면 왼쪽으로',u:'⬆️ 얼굴을 화면 위쪽으로',d:'⬇️ 얼굴을 화면 아래쪽으로'})[dir]
+  const mv = (dir)=> (dir=userDir(dir), front) ? ({r:'➡️ 얼굴을 화면 오른쪽으로',l:'⬅️ 얼굴을 화면 왼쪽으로',u:'⬆️ 얼굴을 화면 위쪽으로',d:'⬇️ 얼굴을 화면 아래쪽으로'})[dir]
                           : ({r:'➡️ 카메라를 오른쪽으로',l:'⬅️ 카메라를 왼쪽으로',u:'⬆️ 카메라를 위로',d:'⬇️ 카메라를 아래로'})[dir];
   if(beforeStats && beforeStats.gray.length===L.gray.length){
     const B=beforeStats; const corr=Math.max(0,ncc(B.gray,L.gray)); let pos=1;
