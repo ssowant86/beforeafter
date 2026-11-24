@@ -723,6 +723,7 @@ function drawCamGuides(){ const g=$('#camGuides'); const k=dpr(); g.width=Math.r
 }
 /* ===== 얼굴 따라가는 구도선 (기기 안에서만 처리, 사진은 밖으로 나가지 않음) ===== */
 let faceLM=null, faceLoading=false, faceTimer=0, faceF=null, faceLost=0, faceToastShown=false;
+const faceCv=document.createElement('canvas'), faceCx=faceCv.getContext('2d',{willReadFrequently:true}); let faceErr=0;
 async function loadFace(){ // 위쪽 '인공지능' 부분과 같은 라이브러리·모델 사용 (실시간 영상용)
   if(faceLM || faceLoading) return; faceLoading=true;
   try{ const {m,fs}=await mpLoad();
@@ -737,7 +738,12 @@ function startFace(){
 function stopFace(){ clearInterval(faceTimer); faceTimer=0; faceF=null; }
 function trackFace(){
   if(!camOn || !faceLM || !video.videoWidth || video.readyState<2) return;
-  let res; try{ res=faceLM.detectForVideo(video, performance.now()); }catch(e){ return; }
+  // 카메라(앞·뒤)마다 영상 크기가 달라서, 항상 같은 크기의 작은 그림으로 바꿔서 얼굴을 찾음
+  const vw0=video.videoWidth, vh0=video.videoHeight, fw=320, fh=Math.round(320*vh0/vw0);
+  if(faceCv.width!==fw || faceCv.height!==fh){ faceCv.width=fw; faceCv.height=fh; }
+  faceCx.drawImage(video,0,0,fw,fh);
+  let res; try{ res=faceLM.detectForVideo(faceCv, performance.now()); faceErr=0; }
+  catch(e){ if(++faceErr>8){ try{ faceLM.close(); }catch(_){} faceLM=null; faceErr=0; loadFace(); } return; }
   const lm=res && res.faceLandmarks && res.faceLandmarks[0];
   if(!lm){ if(faceF && performance.now()-faceLost>900){ faceF=null; drawCamGuides(); } return; }
   faceLost=performance.now();
@@ -917,7 +923,7 @@ function capturePhoto(){
 }
 $('#camClose').onclick=exitCamera;
 $('#camRotBtn').onclick=()=>{ startMotion(); manualRot=true; const seq=[0,90,180,-90]; const n=seq[(seq.indexOf(camRot)+1)%4]; setCamRot(n); toast(n===0?'구도선 방향: 세로':'구도선 방향을 돌렸어요 (다시 누르면 또 돌아가요)'); };
-$('#camFlip').onclick=()=>{ facing=facing==='environment'?'user':'environment'; startStream(); };
+$('#camFlip').onclick=()=>{ faceF=null; facing=facing==='environment'?'user':'environment'; startStream(); };
 $('#camRatio').onclick=()=>{ const i=CAM_RATIOS.indexOf(S.ratio); S.ratio=CAM_RATIOS[(i+1)%CAM_RATIOS.length]; saveS(); $('#camRatio').textContent=S.ratio; renderGuideChips(); layoutCam(); toast(`비율 ${S.ratio}`); };
 $('#camGuide').onclick=()=>{ S.guideOn=!S.guideOn; saveS(); renderGuideChips(); drawCamGuides(); drawAll(); };
 $('#shutter').onclick=()=>{ if(!stream){ $('#fileCapture').click(); return; } capturePhoto(); };
