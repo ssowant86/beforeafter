@@ -286,6 +286,13 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
       <button class="pc" data-o="0">0</button><button class="pc" data-o="50">50</button><button class="pc" data-o="100">100</button>
       <button class="pc peek" id="peekBtn">👁 꾹</button>
     </div>
+    <div class="ovRow" id="overlayRow2">
+      <span>겹치기</span>
+      <button class="pc" data-m="photo">사진</button><button class="pc" data-m="line">윤곽선</button>
+      <span style="flex:1"></span>
+      <button class="pc" id="autoShotBtn">⏱ 자동촬영</button>
+      <button class="pc" id="autoAlignBtn">🎯 자동정렬</button>
+    </div>
     <div class="shutterRow">
       <button class="side" id="camGal"><span>🖼</span>갤러리</button>
       <button id="shutter" aria-label="촬영"></button>
@@ -347,7 +354,7 @@ const DEF = {
   layout:'tb', ratio:'3:4', proc:'brow', guideOn:true,
   color:'#ffffff', opacity:70, width:2, overlay:40,
   text:'', textPos:'bottom', textSize:6, textColor:'#ffffff',
-  labels:false, ver:4
+  labels:false, ver:4, ovMode:'photo', autoShot:false, autoAlign:true
 };
 let S = Object.assign({}, DEF);
 try{ Object.assign(S, JSON.parse(localStorage.getItem('bacam-settings')||'{}')); }catch(e){}
@@ -691,7 +698,7 @@ function closeCamera(){
 function exitCamera(){ if(history.state && history.state.s==='cam') history.back(); else closeCamera(); }
 function hasOverlay(){ return camTarget===1 && !!slots[0].proc; }
 function layoutCam(){
-  $('#overlayRow').classList.toggle('hidden', !hasOverlay());
+  $('#overlayRow').classList.toggle('hidden', !hasOverlay()); $('#overlayRow2').classList.toggle('hidden', !hasOverlay()); renderOvChips();
   $('#match').classList.toggle('hidden', !hasOverlay());
   const st=$('#camStage'); const W=st.clientWidth, H=st.clientHeight; if(!W||!H) return;
   const a=camAspect();
@@ -706,6 +713,7 @@ function layoutCam(){
     const s=slots[0]; const c=cropOf(s,a);
     bx.drawImage(s.proc,c.x,c.y,c.w,c.h,0,0,bc.width,bc.height);
     bc.style.opacity=S.overlay/100;
+    detectBeforeFace(s, c);
     const sw=48, sh=Math.max(8,Math.round(48/a)); small.width=sw; small.height=sh;
     smallCtx.drawImage(s.proc,c.x,c.y,c.w,c.h,0,0,sw,sh);
     beforeStats=analyze(smallCtx.getImageData(0,0,sw,sh));
@@ -732,7 +740,7 @@ async function loadFace(){ // 위쪽 '인공지능' 부분과 같은 라이브�
   faceLoading=false;
 }
 function startFace(){
-  if(S.proc!=='brow' && S.proc!=='lash'){ return; }
+  if(S.proc!=='brow' && S.proc!=='lash' && !hasOverlay()){ return; }
   loadFace(); clearInterval(faceTimer); faceTimer=setInterval(trackFace,110);
 }
 function stopFace(){ clearInterval(faceTimer); faceTimer=0; faceF=null; }
@@ -747,6 +755,8 @@ function trackFace(){
   const lm=res && res.faceLandmarks && res.faceLandmarks[0];
   if(!lm){ if(faceF && performance.now()-faceLost>900){ faceF=null; drawCamGuides(); } return; }
   faceLost=performance.now();
+  { const vw1=video.videoWidth, vh1=video.videoHeight, c1=videoCrop(), mir=facing==='user';
+    liveLM=lm.map(p=>{ let x=(p.x*vw1-c1.x)/c1.w; if(mir) x=1-x; return {x, y:(p.y*vh1-c1.y)/c1.h}; }); liveAt=performance.now(); }
   const vw=video.videoWidth, vh=video.videoHeight, c=videoCrop(), k=dpr(), mirror=facing==='user';
   const P=i=>{ let x=((lm[i].x*vw-c.x)/c.w)*frameW*k, y=((lm[i].y*vh-c.y)/c.h)*frameH*k; if(mirror) x=frameW*k-x; return {x,y}; };
   const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
@@ -789,6 +799,110 @@ function drawFaceGuides(ctx,W,H,k,F){
     label('눈 위치', 0, -d*0.45);
   }
   ctx.restore();
+}
+/* ===== 비포 얼굴과 비교: 매칭률 · 윤곽선 · 자동 정렬 · 자동 촬영 ===== */
+let beforeFace=null, beforeFaceKey=null, liveLM=null, liveAt=0, autoCount=0;
+const FL={ // 얼굴 특징점 번호 (윤곽선용)
+  reye:[33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246,33],
+  leye:[263,249,390,373,374,380,381,382,362,398,384,385,386,387,388,466,263],
+  rbrow:[70,63,105,66,107,55,65,52,53,46,70],
+  lbrow:[300,293,334,296,336,285,295,282,283,276,300],
+  nose:[168,6,197,195,5,4,1], nostril:[98,97,2,326,327],
+  lips:[61,146,91,181,84,17,314,405,321,375,291,409,270,269,267,0,37,39,40,185,61],
+  oval:[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10]
+};
+function faceGeo(lm, W, H){ // 특징점 → 눈 가운데·눈 사이 거리·기울기·고개 돌림·숙임 (W×H 화면 기준)
+  const P=i=>({x:lm[i].x*W, y:lm[i].y*H});
+  const m=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  const A=m(P(33),P(133)), B=m(P(362),P(263));
+  const vx=B.x-A.x, vy=B.y-A.y, d=Math.hypot(vx,vy)||1, ux=vx/d, uy=vy/d;
+  const c=m(A,B), n=P(1), nx=n.x-c.x, ny=n.y-c.y;
+  return {cx:c.x, cy:c.y, d, ang:Math.atan2(vy,vx), yaw:(nx*ux+ny*uy)/d, pitch:(-nx*uy+ny*ux)/d, A, B};
+}
+async function detectStill(canvas){ // 사진(정지 이미지)에서 얼굴 찾기
+  try{ const f=await getFace(); const r=f.detect(canvas); return (r && r.faceLandmarks && r.faceLandmarks[0]) || null; }catch(e){ return null; }
+}
+async function detectBeforeFace(s, c){
+  const key=[s.proc.width,s.proc.height,Math.round(c.x),Math.round(c.y),Math.round(c.w),Math.round(c.h)].join(',');
+  if(beforeFaceKey===key){ drawBeforeLayer(); return; }
+  beforeFaceKey=key; beforeFace=null; drawBeforeLayer();
+  const cv=document.createElement('canvas'); const sc=Math.min(1, 640/Math.max(c.w,c.h));
+  cv.width=Math.max(1,Math.round(c.w*sc)); cv.height=Math.max(1,Math.round(c.h*sc));
+  cv.getContext('2d').drawImage(s.proc,c.x,c.y,c.w,c.h,0,0,cv.width,cv.height);
+  const lm=await detectStill(cv);
+  if(beforeFaceKey!==key) return;
+  beforeFace=lm; drawBeforeLayer();
+  if(!lm && S.ovMode==='line' && camOn) toast('비포 사진에서 얼굴을 못 찾아서 사진으로 겹쳐 보여 드려요', 2600);
+}
+function drawBeforeLayer(){ // '사진' 또는 '윤곽선'으로 비포 겹치기
+  if(!camOn || !hasOverlay()) return;
+  const bc=$('#camBefore'), bx=bc.getContext('2d'), s=slots[0], c=cropOf(s,camAspect());
+  bx.clearRect(0,0,bc.width,bc.height);
+  if(S.ovMode==='line' && beforeFace){
+    const W=bc.width, H=bc.height, k=dpr();
+    bx.save(); bx.lineJoin='round'; bx.lineCap='round';
+    const path=(ids,w)=>{ bx.lineWidth=w; bx.beginPath(); ids.forEach((i,j)=>{ const p=beforeFace[i]; j? bx.lineTo(p.x*W,p.y*H) : bx.moveTo(p.x*W,p.y*H); }); bx.stroke(); };
+    bx.shadowColor='rgba(0,0,0,.55)'; bx.shadowBlur=3*k;
+    bx.strokeStyle='#ff4fa0'; ['reye','leye','rbrow','lbrow'].forEach(n=>path(FL[n],2.6*k));
+    bx.strokeStyle='#ffd166'; ['nose','nostril','lips'].forEach(n=>path(FL[n],2*k));
+    bx.strokeStyle='rgba(255,255,255,.85)'; path(FL.oval,1.8*k);
+    bx.restore();
+    bc.style.opacity=Math.max(0.9, S.overlay/100);
+  } else {
+    bx.drawImage(s.proc,c.x,c.y,c.w,c.h,0,0,bc.width,bc.height);
+    bc.style.opacity=S.overlay/100;
+  }
+}
+function renderOvChips(){
+  document.querySelectorAll('.pc[data-m]').forEach(b=>b.classList.toggle('on', b.dataset.m===S.ovMode));
+  $('#autoShotBtn').classList.toggle('on', !!S.autoShot);
+  $('#autoAlignBtn').classList.toggle('on', !!S.autoAlign);
+}
+function faceMatch(){ // 얼굴 특징점으로 매칭률과 안내 문구
+  if(!beforeFace || !liveLM || performance.now()-liveAt>700) return null;
+  const W=frameW, H=frameH, b=faceGeo(beforeFace,W,H), l=faceGeo(liveLM,W,H), front=facing==='user';
+  let da=l.ang-b.ang; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
+  const dx=(l.cx-b.cx)/b.d, dy=(l.cy-b.cy)/b.d, sc=Math.log(l.d/b.d), dyaw=l.yaw-b.yaw, dpit=l.pitch-b.pitch;
+  const T={pos:Math.hypot(dx,dy)/0.30, scale:Math.abs(sc)/0.10, roll:Math.abs(da)/(5*Math.PI/180), yaw:Math.abs(dyaw)/0.09, pitch:Math.abs(dpit)/0.09};
+  const sum=Object.values(T).reduce((a,v)=>a+v*v,0);
+  const score=Math.round(100*Math.exp(-0.5*sum*0.35));
+  let msg='';
+  if(score<90){
+    const worst=Object.keys(T).reduce((a,k)=>T[k]>T[a]?k:a,'pos');
+    const U=d=>userDir(d), word={r:'오른쪽',l:'왼쪽',u:'위쪽',d:'아래쪽'};
+    if(worst==='scale') msg = sc>0 ? '📏 조금 멀리서 찍어 주세요' : '📏 조금 더 가까이 다가가세요';
+    else if(worst==='roll'){ const cw=(da>0)!==front; msg = cw ? '🔄 폰을 시계 방향으로 살짝 돌려 주세요' : '🔄 폰을 시계 반대 방향으로 살짝 돌려 주세요'; }
+    else if(worst==='yaw') msg = `↪️ 얼굴을 화면 ${word[U(dyaw>0?'l':'r')]}으로 살짝 돌려 주세요`;
+    else if(worst==='pitch') msg = dpit>0 ? '⬆️ 턱을 살짝 들어 주세요' : '⬇️ 턱을 살짝 당겨 주세요';
+    else {
+      const mvF={r:'➡️ 얼굴을 화면 오른쪽으로',l:'⬅️ 얼굴을 화면 왼쪽으로',u:'⬆️ 얼굴을 화면 위쪽으로',d:'⬇️ 얼굴을 화면 아래쪽으로'};
+      const mvB={r:'➡️ 카메라를 오른쪽으로',l:'⬅️ 카메라를 왼쪽으로',u:'⬆️ 카메라를 위로',d:'⬇️ 카메라를 아래로'};
+      if(Math.abs(dx)>=Math.abs(dy)) msg = front ? mvF[U(dx>0?'l':'r')] : mvB[U(dx>0?'r':'l')];
+      else msg = front ? mvF[U(dy>0?'u':'d')] : mvB[U(dy>0?'d':'u')];
+    }
+  } else msg = S.autoShot ? '✅ 딱 맞아요! 자동으로 찍어요…' : '✅ 딱 맞아요! 촬영하세요';
+  return {score, msg};
+}
+function maybeAutoShot(score){
+  if(!S.autoShot || !hasOverlay() || !stream) { autoCount=0; return; }
+  autoCount = score>=90 ? autoCount+1 : 0;
+  if(autoCount>=3){ autoCount=0; capturePhoto(); }
+}
+function alignToBefore(out, cb){ // 애프터를 비포의 눈 위치에 맞춰 돌리고·키우고·옮기기
+  if(!S.autoAlign || !beforeFace) return cb(out, false);
+  const sc0=Math.min(1, 640/Math.max(out.width,out.height)); const cv=document.createElement('canvas');
+  cv.width=Math.round(out.width*sc0); cv.height=Math.round(out.height*sc0); cv.getContext('2d').drawImage(out,0,0,cv.width,cv.height);
+  detectStill(cv).then(lm=>{
+    if(!lm) return cb(out,false);
+    const W=out.width, H=out.height, a=faceGeo(lm,W,H), b=faceGeo(beforeFace,W,H);
+    const sc=b.d/a.d; let rot=b.ang-a.ang; while(rot>Math.PI) rot-=2*Math.PI; while(rot<-Math.PI) rot+=2*Math.PI;
+    if(sc<0.75 || sc>1.33 || Math.abs(rot)>0.35) return cb(out,false); // 너무 많이 다르면 건드리지 않음
+    const res=document.createElement('canvas'); res.width=W; res.height=H; const x=res.getContext('2d');
+    const place=(extra)=>{ x.save(); x.translate(b.cx,b.cy); x.rotate(rot); x.scale(sc*extra,sc*extra); x.translate(-a.cx,-a.cy); x.drawImage(out,0,0); x.restore(); };
+    x.filter='blur(12px)'; place(1.12); x.filter='none'; // 가장자리 빈 곳은 흐리게 채움
+    place(1);
+    cb(res,true);
+  });
 }
 /* ===== 폰 방향 감지: 옆으로 눕히면 구도선이 따라 돌아감 ===== */
 let camRot=0, motionOn=false;
@@ -885,6 +999,13 @@ function analyzeLive(){
   const hint=$('#hint'); let msg='', front=facing==='user';
   const mv = (dir)=> (dir=userDir(dir), front) ? ({r:'➡️ 얼굴을 화면 오른쪽으로',l:'⬅️ 얼굴을 화면 왼쪽으로',u:'⬆️ 얼굴을 화면 위쪽으로',d:'⬇️ 얼굴을 화면 아래쪽으로'})[dir]
                           : ({r:'➡️ 카메라를 오른쪽으로',l:'⬅️ 카메라를 왼쪽으로',u:'⬆️ 카메라를 위로',d:'⬇️ 카메라를 아래로'})[dir];
+  const fm=hasOverlay()? faceMatch() : null;
+  if(fm){
+    const m=$('#match'); m.innerHTML=`${fm.score}%<small>매칭률</small>`;
+    m.style.color = fm.score>=90?'#3ddc84':fm.score>=70?'#ffcc33':'#ff6b6b';
+    hint.textContent=fm.msg; hint.classList.toggle('hidden',!fm.msg); maybeAutoShot(fm.score); return;
+  }
+  autoCount=0;
   if(beforeStats && beforeStats.gray.length===L.gray.length){
     const B=beforeStats; const corr=Math.max(0,ncc(B.gray,L.gray)); let pos=1;
     const skinOK = B.area>0.03 && L.area>0.03;
@@ -917,9 +1038,12 @@ function capturePhoto(){
   const x=out.getContext('2d'); if(facing==='user'){ x.translate(out.width,0); x.scale(-1,1); }
   x.drawImage(video,c.x,c.y,c.w,c.h,0,0,out.width,out.height);
   const f=$('#flash'); f.style.opacity=.8; setTimeout(()=>f.style.opacity=0,120);
-  const target=camTarget;
-  setTimeout(()=>{ exitCamera(); setSlotImage(target, toCanvas(out,out.width,out.height));
-    toast(slots[0].proc && slots[1].proc ? '사진을 넣었어요. 저장에서 비포·애프터를 따로 저장할 수 있어요' : `${slots[target].name} 사진을 넣었어요`, 3000); },180);
+  const target=camTarget, doAlign=target===1 && hasOverlay();
+  setTimeout(()=>{ exitCamera();
+    const done=(img,aligned)=>{ setSlotImage(target, toCanvas(img,img.width,img.height));
+      toast(aligned ? '🎯 비포에 맞춰 자동 정렬했어요' : (slots[0].proc && slots[1].proc ? '사진을 넣었어요. 저장에서 비포·애프터를 따로 저장할 수 있어요' : `${slots[target].name} 사진을 넣었어요`), 3000); };
+    if(doAlign) alignToBefore(out, done); else done(out,false);
+  },180);
 }
 $('#camClose').onclick=exitCamera;
 $('#camRotBtn').onclick=()=>{ startMotion(); manualRot=true; const seq=[0,90,180,-90]; const n=seq[(seq.indexOf(camRot)+1)%4]; setCamRot(n); toast(n===0?'구도선 방향: 세로':'구도선 방향을 돌렸어요 (다시 누르면 또 돌아가요)'); };
@@ -928,10 +1052,13 @@ $('#camRatio').onclick=()=>{ const i=CAM_RATIOS.indexOf(S.ratio); S.ratio=CAM_RA
 $('#camGuide').onclick=()=>{ S.guideOn=!S.guideOn; saveS(); renderGuideChips(); drawCamGuides(); drawAll(); };
 $('#shutter').onclick=()=>{ if(!stream){ $('#fileCapture').click(); return; } capturePhoto(); };
 function setOverlay(v){
-  S.overlay=v; saveS(); $('#overlayRange').value=v; $('#camBefore').style.opacity=v/100;
+  S.overlay=v; saveS(); $('#overlayRange').value=v; $('#camBefore').style.opacity=(S.ovMode==='line'&&beforeFace)? Math.max(0.9,v/100) : v/100;
   document.querySelectorAll('.pc[data-o]').forEach(b=>b.classList.toggle('on', +b.dataset.o===v));
 }
 $('#overlayRange').oninput=e=>setOverlay(+e.target.value);
+document.querySelectorAll('.pc[data-m]').forEach(b=>b.onclick=()=>{ S.ovMode=b.dataset.m; saveS(); renderOvChips(); drawBeforeLayer(); if(S.ovMode==='line' && !beforeFace) toast('비포 얼굴을 찾는 중이에요…'); });
+$('#autoShotBtn').onclick=()=>{ S.autoShot=!S.autoShot; saveS(); renderOvChips(); toast(S.autoShot?'⏱ 매칭률 90% 이상이면 자동으로 찍어요':'자동촬영을 껐어요'); };
+$('#autoAlignBtn').onclick=()=>{ S.autoAlign=!S.autoAlign; saveS(); renderOvChips(); toast(S.autoAlign?'🎯 찍은 뒤 비포에 맞춰 자동 정렬해요':'자동정렬을 껐어요'); };
 document.querySelectorAll('.pc[data-o]').forEach(b=>b.onclick=()=>setOverlay(+b.dataset.o));
 (()=>{ const pk=$('#peekBtn');
   const on=e=>{ e.preventDefault(); $('#camBefore').style.opacity=1; pk.classList.add('on'); };
