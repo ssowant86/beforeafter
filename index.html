@@ -113,6 +113,8 @@ input[type=range]{accent-color:var(--accent);height:26px}
 #camFallback p{margin:0;font-size:14px;line-height:1.5;color:#ddd}
 #camFallback .big{width:100%;max-width:320px}
 .camctrl{padding:4px 0 6px;background:#000}
+.revBar{display:flex;gap:10px;padding:10px 14px 14px}.revBar .big{flex:1}
+#revBadge{position:absolute;left:8px;top:60px;background:rgba(0,0,0,.6);padding:4px 9px;border-radius:12px;font-size:12px;font-weight:800;color:#3ddc84}
 .ovRow{display:flex;align-items:center;gap:6px;padding:2px 12px;font-size:11px;color:#bbb}
 .ovRow input{flex:1;min-width:60px}
 .ovRow .pc{height:26px;min-width:34px;padding:0 6px;border-radius:13px;background:rgba(255,255,255,.12);font-size:11px;font-weight:700;color:#fff}
@@ -268,11 +270,13 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
   <div id="camStage">
     <div id="camFrame">
       <canvas id="liveGL"></canvas>
+      <canvas id="revCv" class="hidden"></canvas>
       <canvas id="camBefore"></canvas>
       <canvas id="camGuides"></canvas>
       <div id="hint" class="hidden"></div>
       <div id="match" class="hidden">--%<small>매칭률</small></div>
       <div id="flash"></div>
+      <div id="revBadge" class="hidden"></div>
       <div id="camFallback" class="hidden">
         <p id="camErrMsg">실시간 카메라를 열 수 없어요.</p>
         <button class="big primary" id="nativePhoto">📱 휴대폰 기본 카메라로 사진 찍기</button>
@@ -292,6 +296,10 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
       <span style="flex:1"></span>
       <button class="pc" id="autoShotBtn">⏱ 자동촬영</button>
       <button class="pc" id="autoAlignBtn">🎯 자동정렬</button>
+    </div>
+    <div class="revBar hidden" id="revBar">
+      <button class="big" id="revRetake">↺ 다시 찍기</button>
+      <button class="big primary" id="revUse">✓ 이 사진 쓰기</button>
     </div>
     <div class="shutterRow">
       <button class="side" id="camGal"><span>🖼</span>갤러리</button>
@@ -595,7 +603,7 @@ function slotMenu(i){
   openSheet(`<h2>${s.name} 칸 <button data-close>✕</button></h2>
    <div class="list">
     <button class="big" id="m_gal">🖼 갤러리에서 사진 불러오기</button>
-    <button class="big" id="m_cam">📷 카메라로 촬영하기</button>
+    <button class="big" id="m_cam">📷 ${s.proc?"다시 촬영하기":"카메라로 촬영하기"}</button>
     ${s.proc?'<button class="big" id="m_edit">🎨 이 사진 편집하기</button><button class="big" id="m_reset">↺ 확대/위치 원래대로</button><button class="big" id="m_del">🗑 이 칸 비우기</button>':''}
    </div>`, sh=>{
     sh.querySelector('#m_gal').onclick=()=>{ closeSheet(); pickGallery(i); };
@@ -691,7 +699,7 @@ function openCamera(target, align){
   layoutCam(); startStream();
 }
 function closeCamera(){
-  if(!camOn) return; camOn=false; stopStream();
+  if(!camOn) return; camOn=false; stopStream(); if(reviewing) hideReview();
   $('#cam').classList.add('hidden'); $('#main').classList.remove('hidden'); $('#camFallback').classList.add('hidden');
   layout();
 }
@@ -722,6 +730,11 @@ function layoutCam(){
 }
 function drawCamGuides(){ const g=$('#camGuides'); const k=dpr(); g.width=Math.round(frameW*k); g.height=Math.round(frameH*k); const x=g.getContext('2d'); x.clearRect(0,0,g.width,g.height);
   const W=g.width, H=g.height;
+  if(S.ovMode==='line' && hasOverlay() && beforeFace && liveLM && performance.now()-liveAt<700){ // 지금 얼굴 윤곽선(하늘색) — 분홍 비포 선에 겹치면 OK
+    x.save(); x.lineJoin='round'; x.lineCap='round'; x.strokeStyle='rgba(80,220,255,.95)'; x.shadowColor='rgba(0,0,0,.5)'; x.shadowBlur=2*k;
+    const path=(ids,w)=>{ x.lineWidth=w; x.beginPath(); ids.forEach((i,j)=>{ const p=liveLM[i]; j? x.lineTo(p.x*W,p.y*H) : x.moveTo(p.x*W,p.y*H); }); x.stroke(); };
+    ['reye','leye','rbrow','lbrow','nose','lips'].forEach(n=>path(FL[n],1.8*k)); path(FL.oval,1.2*k); x.restore();
+  }
   if(faceF && S.guideOn && (S.proc==='brow'||S.proc==='lash')){ drawFaceGuides(x,W,H,k,faceF); return; }
   if(!camRot){ drawGuides(x,W,H,k); return; }
   x.save(); x.translate(W/2,H/2); x.rotate(camRot*Math.PI/180);
@@ -756,7 +769,8 @@ function trackFace(){
   if(!lm){ if(faceF && performance.now()-faceLost>900){ faceF=null; drawCamGuides(); } return; }
   faceLost=performance.now();
   { const vw1=video.videoWidth, vh1=video.videoHeight, c1=videoCrop(), mir=facing==='user';
-    liveLM=lm.map(p=>{ let x=(p.x*vw1-c1.x)/c1.w; if(mir) x=1-x; return {x, y:(p.y*vh1-c1.y)/c1.h}; }); liveAt=performance.now(); }
+    const nl=lm.map(p=>{ let x=(p.x*vw1-c1.x)/c1.w; if(mir) x=1-x; return {x, y:(p.y*vh1-c1.y)/c1.h}; });
+    liveLM = (liveLM && liveLM.length===nl.length && performance.now()-liveAt<500) ? nl.map((p,i)=>({x:liveLM[i].x*0.55+p.x*0.45, y:liveLM[i].y*0.55+p.y*0.45})) : nl; liveAt=performance.now(); }
   const vw=video.videoWidth, vh=video.videoHeight, c=videoCrop(), k=dpr(), mirror=facing==='user';
   const P=i=>{ let x=((lm[i].x*vw-c.x)/c.w)*frameW*k, y=((lm[i].y*vh-c.y)/c.h)*frameH*k; if(mirror) x=frameW*k-x; return {x,y}; };
   const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
@@ -801,7 +815,7 @@ function drawFaceGuides(ctx,W,H,k,F){
   ctx.restore();
 }
 /* ===== 비포 얼굴과 비교: 매칭률 · 윤곽선 · 자동 정렬 · 자동 촬영 ===== */
-let beforeFace=null, beforeFaceKey=null, liveLM=null, liveAt=0, autoCount=0;
+let beforeFace=null, beforeFaceKey=null, liveLM=null, liveAt=0, autoCount=0, matchEMA=null, lastWorst=null, lastWorstAt=0;
 const FL={ // 얼굴 특징점 번호 (윤곽선용)
   reye:[33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246,33],
   leye:[263,249,390,373,374,380,381,382,362,398,384,385,386,387,388,466,263],
@@ -859,16 +873,24 @@ function renderOvChips(){
   $('#autoAlignBtn').classList.toggle('on', !!S.autoAlign);
 }
 function faceMatch(){ // 얼굴 특징점으로 매칭률과 안내 문구
-  if(!beforeFace || !liveLM || performance.now()-liveAt>700) return null;
+  if(!beforeFace || !liveLM || performance.now()-liveAt>700){ matchEMA=null; return null; }
   const W=frameW, H=frameH, b=faceGeo(beforeFace,W,H), l=faceGeo(liveLM,W,H), front=facing==='user';
   let da=l.ang-b.ang; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
   const dx=(l.cx-b.cx)/b.d, dy=(l.cy-b.cy)/b.d, sc=Math.log(l.d/b.d), dyaw=l.yaw-b.yaw, dpit=l.pitch-b.pitch;
-  const T={pos:Math.hypot(dx,dy)/0.30, scale:Math.abs(sc)/0.10, roll:Math.abs(da)/(5*Math.PI/180), yaw:Math.abs(dyaw)/0.09, pitch:Math.abs(dpit)/0.09};
+  // 자동정렬이 켜져 있으면 위치·크기·기울기는 찍은 뒤 앱이 맞춰 주므로, 고개 각도(돌림·숙임)만 엄격하게 봄
+  const AA=!!S.autoAlign, over=(v,lim)=>Math.max(0,v-lim);
+  const T = AA ? {pos:over(Math.hypot(dx,dy),0.6)/0.4, scale:over(Math.abs(sc),0.18)/0.12, roll:over(Math.abs(da),15*Math.PI/180)/(8*Math.PI/180), yaw:Math.abs(dyaw)/0.14, pitch:Math.abs(dpit)/0.14}
+               : {pos:Math.hypot(dx,dy)/0.45, scale:Math.abs(sc)/0.15, roll:Math.abs(da)/(8*Math.PI/180), yaw:Math.abs(dyaw)/0.14, pitch:Math.abs(dpit)/0.14};
   const sum=Object.values(T).reduce((a,v)=>a+v*v,0);
-  const score=Math.round(100*Math.exp(-0.5*sum*0.35));
+  const raw=100*Math.exp(-0.5*sum*0.5);
+  matchEMA = (matchEMA==null) ? raw : matchEMA*0.6+raw*0.4;
+  const score=Math.round(matchEMA);
   let msg='';
   if(score<90){
-    const worst=Object.keys(T).reduce((a,k)=>T[k]>T[a]?k:a,'pos');
+    let worst=Object.keys(T).reduce((a,k)=>T[k]>T[a]?k:a,'pos');
+    // 안내 문구가 너무 자주 바뀌지 않게: 1.2초 동안은 같은 안내 유지 (훨씬 더 틀어진 게 생기면 바꿈)
+    if(lastWorst && lastWorst!==worst && T[lastWorst]>0.5 && T[worst]<T[lastWorst]*1.6 && performance.now()-lastWorstAt<1200) worst=lastWorst;
+    if(worst!==lastWorst){ lastWorst=worst; lastWorstAt=performance.now(); }
     const U=d=>userDir(d), word={r:'오른쪽',l:'왼쪽',u:'위쪽',d:'아래쪽'};
     if(worst==='scale') msg = sc>0 ? '📏 조금 멀리서 찍어 주세요' : '📏 조금 더 가까이 다가가세요';
     else if(worst==='roll'){ const cw=(da>0)!==front; msg = cw ? '🔄 폰을 시계 방향으로 살짝 돌려 주세요' : '🔄 폰을 시계 반대 방향으로 살짝 돌려 주세요'; }
@@ -884,7 +906,7 @@ function faceMatch(){ // 얼굴 특징점으로 매칭률과 안내 문구
   return {score, msg};
 }
 function maybeAutoShot(score){
-  if(!S.autoShot || !hasOverlay() || !stream) { autoCount=0; return; }
+  if(!S.autoShot || !hasOverlay() || !stream || reviewing) { autoCount=0; return; }
   autoCount = score>=90 ? autoCount+1 : 0;
   if(autoCount>=3){ autoCount=0; capturePhoto(); }
 }
@@ -999,9 +1021,10 @@ function analyzeLive(){
   const hint=$('#hint'); let msg='', front=facing==='user';
   const mv = (dir)=> (dir=userDir(dir), front) ? ({r:'➡️ 얼굴을 화면 오른쪽으로',l:'⬅️ 얼굴을 화면 왼쪽으로',u:'⬆️ 얼굴을 화면 위쪽으로',d:'⬇️ 얼굴을 화면 아래쪽으로'})[dir]
                           : ({r:'➡️ 카메라를 오른쪽으로',l:'⬅️ 카메라를 왼쪽으로',u:'⬆️ 카메라를 위로',d:'⬇️ 카메라를 아래로'})[dir];
+  if(reviewing) return;
   const fm=hasOverlay()? faceMatch() : null;
   if(fm){
-    const m=$('#match'); m.innerHTML=`${fm.score}%<small>매칭률</small>`;
+    const m=$('#match'); m.innerHTML=`${fm.score}%<small>얼굴 매칭</small>`;
     m.style.color = fm.score>=90?'#3ddc84':fm.score>=70?'#ffcc33':'#ff6b6b';
     hint.textContent=fm.msg; hint.classList.toggle('hidden',!fm.msg); maybeAutoShot(fm.score); return;
   }
@@ -1033,18 +1056,35 @@ function analyzeLive(){
   hint.textContent=msg; hint.classList.toggle('hidden',!msg);
 }
 function capturePhoto(){
-  if(!video.videoWidth) return;
+  if(!video.videoWidth || reviewing) return;
   const c=videoCrop(); const out=document.createElement('canvas'); out.width=Math.round(c.w); out.height=Math.round(c.h);
   const x=out.getContext('2d'); if(facing==='user'){ x.translate(out.width,0); x.scale(-1,1); }
   x.drawImage(video,c.x,c.y,c.w,c.h,0,0,out.width,out.height);
   const f=$('#flash'); f.style.opacity=.8; setTimeout(()=>f.style.opacity=0,120);
   const target=camTarget, doAlign=target===1 && hasOverlay();
-  setTimeout(()=>{ exitCamera();
-    const done=(img,aligned)=>{ setSlotImage(target, toCanvas(img,img.width,img.height));
-      toast(aligned ? '🎯 비포에 맞춰 자동 정렬했어요' : (slots[0].proc && slots[1].proc ? '사진을 넣었어요. 저장에서 비포·애프터를 따로 저장할 수 있어요' : `${slots[target].name} 사진을 넣었어요`), 3000); };
-    if(doAlign) alignToBefore(out, done); else done(out,false);
-  },180);
+  reviewing=true; autoCount=0;
+  if(doAlign) alignToBefore(out, (img,al)=>showReview(img,al,target)); else showReview(out,false,target);
 }
+
+/* ===== 찍은 사진 확인: 다시 찍기 / 이 사진 쓰기 ===== */
+let reviewing=false, reviewImg=null, reviewTarget=0;
+function showReview(img, aligned, target){
+  reviewImg=img; reviewTarget=target;
+  const rc=$('#revCv'), k=dpr(); rc.width=Math.round(frameW*k); rc.height=Math.round(frameH*k);
+  rc.getContext('2d').drawImage(img,0,0,rc.width,rc.height); rc.classList.remove('hidden');
+  $('#revBar').classList.remove('hidden'); document.querySelector('.shutterRow').classList.add('hidden');
+  $('#hint').classList.add('hidden'); $('#match').classList.add('hidden'); $('#camGuides').classList.add('hidden');
+  const bd=$('#revBadge'); bd.textContent = aligned ? '🎯 비포에 맞춰 자동 정렬됨' : '📷 찍은 사진'; bd.classList.remove('hidden');
+  if(hasOverlay()) toast('👁 꾹 버튼으로 비포와 비교해 보세요', 2200);
+}
+function hideReview(){
+  reviewing=false; reviewImg=null; $('#revCv').classList.add('hidden'); $('#revBar').classList.add('hidden'); $('#revBadge').classList.add('hidden');
+  document.querySelector('.shutterRow').classList.remove('hidden'); $('#camGuides').classList.remove('hidden'); if(hasOverlay()) $('#match').classList.remove('hidden');
+}
+$('#revRetake').onclick=()=>{ hideReview(); toast('다시 찍어 주세요'); };
+$('#revUse').onclick=()=>{ const img=reviewImg, t=reviewTarget; const al=$('#revBadge').textContent.includes('정렬'); hideReview(); exitCamera();
+  setSlotImage(t, toCanvas(img,img.width,img.height));
+  toast(al ? '🎯 비포에 맞춰 정렬된 사진을 넣었어요' : (slots[0].proc && slots[1].proc ? '사진을 넣었어요. 저장에서 비포·애프터를 따로 저장할 수 있어요' : `${slots[t].name} 사진을 넣었어요`), 3000); };
 $('#camClose').onclick=exitCamera;
 $('#camRotBtn').onclick=()=>{ startMotion(); manualRot=true; const seq=[0,90,180,-90]; const n=seq[(seq.indexOf(camRot)+1)%4]; setCamRot(n); toast(n===0?'구도선 방향: 세로':'구도선 방향을 돌렸어요 (다시 누르면 또 돌아가요)'); };
 $('#camFlip').onclick=()=>{ faceF=null; facing=facing==='environment'?'user':'environment'; startStream(); };
