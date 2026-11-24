@@ -1779,7 +1779,12 @@ $('#colSave').onclick=colSave;
 /* ========== 17. 앱 설치 · 시작 ========== */
 let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; $('#installBtn').classList.remove('hidden'); });
-$('#installBtn').onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); try{ await deferredPrompt.userChoice; }catch(e){} deferredPrompt=null; $('#installBtn').classList.add('hidden'); };
+$('#installBtn').onclick=async()=>{
+  const guide=()=>toast('크롬 오른쪽 위 ⋮ → "홈 화면에 추가" 또는 "앱 설치"를 눌러 주세요', 5000);
+  if(!deferredPrompt) return guide();
+  try{ await deferredPrompt.prompt(); const c=await deferredPrompt.userChoice; if(c && c.outcome==='accepted') $('#installBtn').classList.add('hidden'); }catch(e){ guide(); }
+  deferredPrompt=null;
+};
 if('serviceWorker' in navigator && location.protocol.startsWith('http')) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 window.addEventListener('resize',()=>{ layout(); if(camOn) layoutCam(); colLayout(); edFit(); });
 window.addEventListener('orientationchange',()=>setTimeout(()=>{ layout(); if(camOn) layoutCam(); colLayout(); edFit(); },300));
