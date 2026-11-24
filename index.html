@@ -731,6 +731,9 @@ function setCamRot(r){
 let gotMotion=false, manualRot=false;
 function applyGravity(gx,gy){
   if(manualRot) return;
+  // 화면 자체가 이미 가로로 돌아간 경우(자동 회전 켜짐 + 브라우저로 열었을 때)는 구도선을 따로 돌릴 필요 없음
+  const sa=(screen.orientation && typeof screen.orientation.angle==='number') ? screen.orientation.angle : (typeof window.orientation==='number' ? window.orientation : 0);
+  if(sa!==0){ setCamRot(0); return; }
   const ax=Math.abs(gx), ay=Math.abs(gy);
   if(ax<3 && ay<3) return; // 폰을 바닥에 눕혀 둔 상태면 그대로 유지
   if(ax>ay*1.4) setCamRot(gx>0?90:-90);
