@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="비포애프터">
-<title>비포&amp;애프터</title>
+<meta name="apple-mobile-web-app-title" content="샷이음">
+<title>샷이음</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -187,7 +187,7 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
 <!-- ===== 홈 ===== -->
 <div id="home" class="screen">
   <header>
-    <h1><span class="brand">BEAUTY BY BIN</span><br>비포<b>&amp;</b>애프터</h1>
+    <h1><span class="brand">BEAUTY BY BIN</span><br>샷<b>이음</b></h1>
     <button class="icon-btn accent hidden" id="installBtn">설치</button>
     <button class="icon-btn hic" id="helpBtn" aria-label="사용법"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg></button>
     <button class="icon-btn hic" id="setBtn" aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
@@ -857,8 +857,8 @@ function showResult(items, extras){
    </div>`, sh=>{
     sh.querySelector('#r_dl').onclick=()=>{ items.forEach((it,i)=>setTimeout(()=>downloadBlob(it.blob,it.name),i*700)); toast('다운로드를 시작했어요 (아이폰은 ‘파일’ 앱에 저장돼요)',3000); };
     const share=async(mail)=>{
-      if(navigator.canShare && navigator.canShare({files})){ try{ await navigator.share({files, title:'비포&애프터'}); }catch(e){ if(e.name!=='AbortError') toast('공유를 열지 못했어요'); } }
-      else if(mail){ sh.querySelector('#r_dl').click(); setTimeout(()=>{ location.href='mailto:?subject='+encodeURIComponent('비포&애프터 사진')+'&body='+encodeURIComponent('방금 다운로드한 파일을 첨부해 주세요.'); },900); }
+      if(navigator.canShare && navigator.canShare({files})){ try{ await navigator.share({files, title:'샷이음'}); }catch(e){ if(e.name!=='AbortError') toast('공유를 열지 못했어요'); } }
+      else if(mail){ sh.querySelector('#r_dl').click(); setTimeout(()=>{ location.href='mailto:?subject='+encodeURIComponent('샷이음 비포&애프터 사진')+'&body='+encodeURIComponent('방금 다운로드한 파일을 첨부해 주세요.'); },900); }
       else toast('이 브라우저는 공유를 지원하지 않아요. 다운로드를 이용해 주세요.',3000);
     };
     sh.querySelector('#r_share').onclick=()=>share(true);
