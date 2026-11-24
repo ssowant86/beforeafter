@@ -714,11 +714,75 @@ function layoutCam(){
 }
 function drawCamGuides(){ const g=$('#camGuides'); const k=dpr(); g.width=Math.round(frameW*k); g.height=Math.round(frameH*k); const x=g.getContext('2d'); x.clearRect(0,0,g.width,g.height);
   const W=g.width, H=g.height;
+  if(faceF && S.guideOn && (S.proc==='brow'||S.proc==='lash')){ drawFaceGuides(x,W,H,k,faceF); return; }
   if(!camRot){ drawGuides(x,W,H,k); return; }
   x.save(); x.translate(W/2,H/2); x.rotate(camRot*Math.PI/180);
   if(camRot===180){ x.translate(-W/2,-H/2); drawGuides(x,W,H,k); }
   else { x.translate(-H/2,-W/2); drawGuides(x,H,W,k); }
   x.restore();
+}
+/* ===== 얼굴 따라가는 구도선 (기기 안에서만 처리, 사진은 밖으로 나가지 않음) ===== */
+let faceLM=null, faceLoading=false, faceTimer=0, faceF=null, faceLost=0, faceToastShown=false;
+async function loadFace(){ // 위쪽 '인공지능' 부분과 같은 라이브러리·모델 사용 (실시간 영상용)
+  if(faceLM || faceLoading) return; faceLoading=true;
+  try{ const {m,fs}=await mpLoad();
+    faceLM=await tryCreate((u,d)=>m.FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:u,delegate:d},runningMode:'VIDEO',numFaces:1}), FACE_MODELS);
+  }catch(e){ console.log('face load fail',e); }
+  faceLoading=false;
+}
+function startFace(){
+  if(S.proc!=='brow' && S.proc!=='lash'){ return; }
+  loadFace(); clearInterval(faceTimer); faceTimer=setInterval(trackFace,110);
+}
+function stopFace(){ clearInterval(faceTimer); faceTimer=0; faceF=null; }
+function trackFace(){
+  if(!camOn || !faceLM || !video.videoWidth || video.readyState<2) return;
+  let res; try{ res=faceLM.detectForVideo(video, performance.now()); }catch(e){ return; }
+  const lm=res && res.faceLandmarks && res.faceLandmarks[0];
+  if(!lm){ if(faceF && performance.now()-faceLost>900){ faceF=null; drawCamGuides(); } return; }
+  faceLost=performance.now();
+  const vw=video.videoWidth, vh=video.videoHeight, c=videoCrop(), k=dpr(), mirror=facing==='user';
+  const P=i=>{ let x=((lm[i].x*vw-c.x)/c.w)*frameW*k, y=((lm[i].y*vh-c.y)/c.h)*frameH*k; if(mirror) x=frameW*k-x; return {x,y}; };
+  const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  const eA=mid(P(33),P(133)), eB=mid(P(362),P(263)); // 사진 속 사람의 오른눈 / 왼눈
+  let vx=eB.x-eA.x, vy=eB.y-eA.y; if(mirror){ vx=-vx; vy=-vy; }
+  const d=Math.hypot(vx,vy); if(d<8) return;
+  const n={cx:(eA.x+eB.x)/2, cy:(eA.y+eB.y)/2, ang:Math.atan2(vy,vx), d};
+  if(faceF){ // 떨림 줄이기
+    const t=0.45; let da=n.ang-faceF.ang; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
+    n.cx=faceF.cx+(n.cx-faceF.cx)*t; n.cy=faceF.cy+(n.cy-faceF.cy)*t; n.d=faceF.d+(n.d-faceF.d)*t; n.ang=faceF.ang+da*t;
+  }
+  faceF=n; drawCamGuides();
+  if(!faceToastShown){ faceToastShown=true; toast('얼굴을 찾았어요. 구도선이 얼굴을 따라가요', 2200); }
+}
+function drawFaceGuides(ctx,W,H,k,F){
+  ctx.save();
+  ctx.strokeStyle=S.color; ctx.fillStyle=S.color; ctx.globalAlpha=S.opacity/100; ctx.lineWidth=S.width*k;
+  ctx.shadowColor = S.color==='#000000' ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.45)'; ctx.shadowBlur=2*k;
+  ctx.translate(F.cx,F.cy); ctx.rotate(F.ang);
+  const d=F.d, R=Math.hypot(W,H);
+  const L=(x1,y1,x2,y2,dash)=>{ ctx.setLineDash(dash?[8*k,7*k]:[]); ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
+  const label=(t,x,y)=>{ ctx.save(); ctx.setLineDash([]); ctx.globalAlpha=Math.min(1,S.opacity/100+0.15); ctx.font=`700 ${Math.max(11*k,d*0.16)}px ${bodyFont()}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(t,x,y); ctx.restore(); };
+  L(0,-R,0,R); // 얼굴 가운데 세로선
+  ctx.globalAlpha=S.opacity/100*0.85; ctx.lineWidth=S.width*k*0.9;
+  if(S.proc==='brow'){
+    const y=-d*0.42; L(-R,y,R,y,true); // 눈썹 수평선
+    ctx.setLineDash([7*k,6*k]);
+    [-1,1].forEach(s=>{ // 눈썹 모양 (앞머리 → 산 → 꼬리)
+      const head=s*d*0.20, tail=s*d*1.02;
+      ctx.beginPath(); ctx.moveTo(head, y+d*0.06);
+      ctx.quadraticCurveTo(s*d*0.62, y-d*0.30, s*d*0.86, y-d*0.12);
+      ctx.quadraticCurveTo(tail, y-d*0.05, tail, y+d*0.05); ctx.stroke();
+    });
+    label('눈썹 라인', 0, y-d*0.42);
+  } else {
+    L(-R,0,R,0,true); // 눈 수평선
+    ctx.setLineDash([7*k,6*k]);
+    const ew=d*0.62, eh=d*0.26;
+    [-1,1].forEach(s=>{ const cx=s*d/2; ctx.beginPath(); ctx.moveTo(cx-ew/2,0); ctx.quadraticCurveTo(cx,-eh*1.2,cx+ew/2,0); ctx.quadraticCurveTo(cx,eh*0.9,cx-ew/2,0); ctx.stroke(); });
+    label('눈 위치', 0, -d*0.45);
+  }
+  ctx.restore();
 }
 /* ===== 폰 방향 감지: 옆으로 눕히면 구도선이 따라 돌아감 ===== */
 let camRot=0, motionOn=false;
@@ -766,7 +830,7 @@ function userDir(d){ // 화면 기준 방향 → 폰을 든 사람 기준 방향
   if(camRot===180) return {r:'l',l:'r',u:'d',d:'u'}[d];
   return d;
 }
-function stopStream(){ cancelAnimationFrame(rafId); clearInterval(analyzeTimer); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } video.srcObject=null; }
+function stopStream(){ stopFace(); cancelAnimationFrame(rafId); clearInterval(analyzeTimer); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } video.srcObject=null; }
 async function startStream(){
   stopStream(); $('#camFallback').classList.add('hidden'); $('#hint').classList.add('hidden');
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return camFail('이 화면(미리보기 또는 http 주소)에서는 실시간 카메라를 쓸 수 없어요.<br>대신 휴대폰 기본 카메라로 찍을 수 있어요.');
@@ -774,7 +838,7 @@ async function startStream(){
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:false});
     if(!camOn){ stopStream(); return; }
     video.srcObject=stream; await video.play();
-    loop(); analyzeTimer=setInterval(analyzeLive,300);
+    loop(); analyzeTimer=setInterval(analyzeLive,300); startFace();
   }catch(e){
     let m='실시간 카메라를 열 수 없어요.';
     if(e && (e.name==='NotAllowedError'||e.name==='SecurityError')) m='카메라 권한이 막혀 있어요.<br>주소창 옆 🔒(자물쇠) → 권한 → 카메라 “허용”으로 바꿔 주세요.';
