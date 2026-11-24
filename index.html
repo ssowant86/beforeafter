@@ -261,6 +261,7 @@ textarea{width:100%;min-height:56px;background:var(--panel2);color:var(--text);b
   <header>
     <button class="icon-btn" id="camClose" aria-label="닫기">✕</button>
     <h1 id="camTitle">촬영</h1>
+    <button class="icon-btn" id="camRotBtn" aria-label="구도선 방향 돌리기">⤾</button>
     <button class="icon-btn" id="camRatio" aria-label="비율">3:4</button>
     <button class="icon-btn" id="camFlip" aria-label="카메라 전환">🔄</button>
   </header>
@@ -673,7 +674,7 @@ const small=document.createElement('canvas'); const smallCtx=small.getContext('2
 function camAspect(){ return ratioNum() || 3/4; }
 function openCamera(target, align){
   if(target===undefined || target<0){ target=firstEmpty(); if(target<0) target=1; }
-  startMotion();
+  startMotion(); manualRot=false;
   camTarget=target; camOn=true; alignMode=!!align && target===1 && !!slots[0].proc;
   $('#main').classList.add('hidden'); $('#cam').classList.remove('hidden');
   $('#camTitle').textContent = (alignMode ? '비포에 맞춰 찍기' : (target===0?'BEFORE':'AFTER')+' 촬영') + ' · ' + procName(S.proc);
@@ -727,21 +728,33 @@ function setCamRot(r){
   const fr=$('#camFrame'); fr.classList.toggle('r90',r===90); fr.classList.toggle('rm90',r===-90); fr.classList.toggle('r180',r===180);
   if(camOn) drawCamGuides();
 }
-function onMotion(e){
-  const g=e.accelerationIncludingGravity; if(!g || g.x==null || g.y==null) return;
-  let gx=g.x, gy=g.y; if(IS_IOS){ gx=-gx; gy=-gy; }
+let gotMotion=false, manualRot=false;
+function applyGravity(gx,gy){
+  if(manualRot) return;
   const ax=Math.abs(gx), ay=Math.abs(gy);
   if(ax<3 && ay<3) return; // 폰을 바닥에 눕혀 둔 상태면 그대로 유지
   if(ax>ay*1.4) setCamRot(gx>0?90:-90);
   else if(ay>ax*1.4) setCamRot(gy>0?0:180);
 }
+function onOrient(e){ // 동작 센서가 안 될 때 쓰는 예비 방법(기울기 센서)
+  if(gotMotion || e.beta==null || e.gamma==null) return;
+  const b=e.beta*Math.PI/180, g=e.gamma*Math.PI/180;
+  applyGravity(-Math.cos(b)*Math.sin(g)*9.8, Math.sin(b)*9.8);
+}
+function onMotion(e){
+  const g=e.accelerationIncludingGravity; if(!g || g.x==null || g.y==null) return;
+  gotMotion=true;
+  let gx=g.x, gy=g.y; if(IS_IOS){ gx=-gx; gy=-gy; }
+  applyGravity(gx,gy);
+}
 function startMotion(){
   if(motionOn) return;
-  const go=()=>{ window.addEventListener('devicemotion',onMotion); motionOn=true; };
+  const go=()=>{ window.addEventListener('devicemotion',onMotion); window.addEventListener('deviceorientation',onOrient); motionOn=true; };
   if(!window.DeviceMotionEvent) return;
   go(); // 대부분의 안드로이드는 바로 동작
   if(typeof DeviceMotionEvent.requestPermission==='function'){ // 아이폰: 처음 한 번 '동작 및 방향' 허용 필요
     try{ DeviceMotionEvent.requestPermission().catch(()=>{}); }catch(e){}
+    try{ if(window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(()=>{}); }catch(e){}
   }
 }
 function userDir(d){ // 화면 기준 방향 → 폰을 든 사람 기준 방향
@@ -836,6 +849,7 @@ function capturePhoto(){
     toast(slots[0].proc && slots[1].proc ? '사진을 넣었어요. 저장에서 비포·애프터를 따로 저장할 수 있어요' : `${slots[target].name} 사진을 넣었어요`, 3000); },180);
 }
 $('#camClose').onclick=exitCamera;
+$('#camRotBtn').onclick=()=>{ startMotion(); manualRot=true; const seq=[0,90,180,-90]; const n=seq[(seq.indexOf(camRot)+1)%4]; setCamRot(n); toast(n===0?'구도선 방향: 세로':'구도선 방향을 돌렸어요 (다시 누르면 또 돌아가요)'); };
 $('#camFlip').onclick=()=>{ facing=facing==='environment'?'user':'environment'; startStream(); };
 $('#camRatio').onclick=()=>{ const i=CAM_RATIOS.indexOf(S.ratio); S.ratio=CAM_RATIOS[(i+1)%CAM_RATIOS.length]; saveS(); $('#camRatio').textContent=S.ratio; renderGuideChips(); layoutCam(); toast(`비율 ${S.ratio}`); };
 $('#camGuide').onclick=()=>{ S.guideOn=!S.guideOn; saveS(); renderGuideChips(); drawCamGuides(); drawAll(); };
