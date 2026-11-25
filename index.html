@@ -1073,12 +1073,12 @@ function showReview(img, aligned, target){
   const rc=$('#revCv'), k=dpr(); rc.width=Math.round(frameW*k); rc.height=Math.round(frameH*k);
   rc.getContext('2d').drawImage(img,0,0,rc.width,rc.height); rc.classList.remove('hidden');
   $('#revBar').classList.remove('hidden'); document.querySelector('.shutterRow').classList.add('hidden');
-  $('#hint').classList.add('hidden'); $('#match').classList.add('hidden'); $('#camGuides').classList.add('hidden');
+  $('#hint').classList.add('hidden'); $('#match').classList.add('hidden'); $('#camGuides').classList.add('hidden'); $('#camBefore').classList.add('hidden'); // 찍은 사진만 보이게 (비포는 👁 꾹 누를 때만)
   const bd=$('#revBadge'); bd.textContent = aligned ? '🎯 비포에 맞춰 자동 정렬됨' : '📷 찍은 사진'; bd.classList.remove('hidden');
   if(hasOverlay()) toast('👁 꾹 버튼으로 비포와 비교해 보세요', 2200);
 }
 function hideReview(){
-  reviewing=false; reviewImg=null; $('#revCv').classList.add('hidden'); $('#revBar').classList.add('hidden'); $('#revBadge').classList.add('hidden');
+  reviewing=false; reviewImg=null; $('#revCv').classList.add('hidden'); $('#revBar').classList.add('hidden'); $('#revBadge').classList.add('hidden'); $('#camBefore').classList.remove('hidden'); setOverlay(S.overlay);
   document.querySelector('.shutterRow').classList.remove('hidden'); $('#camGuides').classList.remove('hidden'); if(hasOverlay()) $('#match').classList.remove('hidden');
 }
 $('#revRetake').onclick=()=>{ hideReview(); toast('다시 찍어 주세요'); };
@@ -1101,8 +1101,8 @@ $('#autoShotBtn').onclick=()=>{ S.autoShot=!S.autoShot; saveS(); renderOvChips()
 $('#autoAlignBtn').onclick=()=>{ S.autoAlign=!S.autoAlign; saveS(); renderOvChips(); toast(S.autoAlign?'🎯 찍은 뒤 비포에 맞춰 자동 정렬해요':'자동정렬을 껐어요'); };
 document.querySelectorAll('.pc[data-o]').forEach(b=>b.onclick=()=>setOverlay(+b.dataset.o));
 (()=>{ const pk=$('#peekBtn');
-  const on=e=>{ e.preventDefault(); $('#camBefore').style.opacity=1; pk.classList.add('on'); };
-  const off=()=>{ $('#camBefore').style.opacity=S.overlay/100; pk.classList.remove('on'); };
+  const on=e=>{ e.preventDefault(); $('#camBefore').classList.remove('hidden'); $('#camBefore').style.opacity=1; pk.classList.add('on'); };
+  const off=()=>{ if(!pk.classList.contains('on')) return; pk.classList.remove('on'); if(reviewing) $('#camBefore').classList.add('hidden'); else setOverlay(S.overlay); };
   pk.addEventListener('pointerdown',on); ['pointerup','pointercancel','pointerleave'].forEach(t=>pk.addEventListener(t,off));
   pk.addEventListener('contextmenu',e=>e.preventDefault());
 })();
